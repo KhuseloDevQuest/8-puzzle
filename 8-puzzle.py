@@ -1,7 +1,7 @@
 class Node:
     def __init__(self, value):
         self.value = value
-        self._next = None # Python's version of "null" is "None"
+        self._next = None
         self._prev = None
 
 class DoublyLinkedList:
@@ -11,16 +11,8 @@ class DoublyLinkedList:
         self._N = 0
      
     def add_first(self, value):
-        """
-        Parameters
-        ----------
-        value: any
-            Add a new node to the beginning with this value
-        """
         new_node = Node(value)
         if not self._head:
-            # If there's nothing there yet, this
-            # new element is both the head and the tail
             self._head = new_node
             self._tail = new_node
         else:
@@ -32,8 +24,6 @@ class DoublyLinkedList:
     def add_last(self, value):
         new_node = Node(value)
         if not self._tail:
-            # If there's nothing there yet, this
-            # new element is both the head and the tail
             self._head = new_node
             self._tail = new_node
         else:
@@ -43,12 +33,8 @@ class DoublyLinkedList:
         self._N += 1
      
     def remove_first(self):
-        """
-        Remove and return the first value from the linked list
-        or do nothing and return None if it's already empty
-        """
         ret = None
-        if self._head: # If the head is not None
+        if self._head:
             ret = self._head.value
             if self._head is self._tail:
                 self._head = None
@@ -59,183 +45,76 @@ class DoublyLinkedList:
             self._N -= 1
         return ret
 
-    def remove_last(self):
-        """
-        Remove and return the last value from the linked list
-        or do nothing and return None if it's already empty
-        """
-        ret = None
-        if self._tail: # If the head is not None
-            ret = self._tail.value
-            if self._head is self._tail:
-                self._head = None
-                self._tail = None
-            else:
-                self._tail = self._tail._prev
-                self._tail._next = None
-            self._N -= 1
-        return ret
-         
-    def __str__(self):
-        # This is like the to-string method
-        s = "DoublyLinkedList: "
-        node = self._head
-        while node: #As long as the node is not None
-            s += "{} ==> ".format(node.value)
-            node = node._next
-        return s
-     
     def __len__(self):
-        # This allows us to use len() on our object to get its length!
         return self._N
 
 class State:
     def __init__(self, tiles):
-        """
-        Parameters
-        ----------
-        tiles: 2d list
-            A list of list of tiles.  All are numbers except for
-            the blank, which is a " "
-            Ex) [[2, 6, 1], [7, " ", 3], [5, 8, 4]]
-        """
         self.tiles = tiles
         self.prev = None
     
     def __repr__(self):
-        """
-        Returns
-        -------
-        A printable string representation of the board
-        """
         s = ""
-        for i in range(len(self.tiles)):
-            for j in range(len(self.tiles[i])):
-                s += "{} ".format(self.tiles[i][j])
+        for row in self.tiles:
+            for val in row:
+                s += "{} ".format(val)
             s += "\n"
         return s
     
     def __eq__(self, other):
-        return str(self) == str(other)
+        return self.tiles == other.tiles
     
     def __hash__(self):
-        return hash(tuple([tuple(x) for x in self.tiles]))
+        return hash(tuple([tuple(row) for row in self.tiles]))
 
     def __lt__(self, other):
-        """
-        Overload the less than operator so that ties can
-        be broken automatically in a heap without crashing
-        Parameters
-        ----------
-        other: State
-            Another state
-        
-        Returns
-        -------
-        Result of < on string comparison of __str__ from self
-        and other
-        """
         return str(self) < str(other)
     
     def copy(self):
-        """
-        Return a deep copy of this state
-        """
-        tiles = []
-        for i in range(len(self.tiles)):
-            tiles.append([])
-            for j in range(len(self.tiles[i])):
-                tiles[i].append(self.tiles[i][j])
-        return State(tiles)
+        return State([row[:] for row in self.tiles])
     
-    def is_goal(self):
-        """
-        Returns
-        -------
-        True if this is a goal state, False otherwise
-        """
-        res = True
-        N = len(self.tiles)
-        counter = 1
-        for i in range(N):
-            for j in range(N):
-                if i != N-1 or j != N-1:
-                    if self.tiles[i][j] != counter:
-                        res = False
-                counter += 1
-        return res
-
     def get_neighbs(self):
-        """
-        Get the neighboring states
-
-        Returns
-        -------
-        list of State
-            A list of the neighboring states
-        """
         N = len(self.tiles)
         neighbs = []
+        row, col = -1, -1
         
-        ## Step 1: Find the row and col of the blank
-        row = 0
-        col = 0
         for i in range(N):
             for j in range(N):
                 if self.tiles[i][j] == " ":
-                    row = i
-                    col = j
+                    row, col = i, j
+                    break
         
-        ## Step 2: Swap this index with every neighbor
-        ## that it can be swapped with
-        for [i, j] in [[row-1, col], [row+1, col], [row, col-1], [row, col+1]]:
-            if i >= 0 and j >= 0 and i < N and j < N:
+        for (i, j) in [(row-1,col), (row+1,col), (row,col-1), (row,col+1)]:
+            if 0 <= i < N and 0 <= j < N:
                 n = self.copy()
-                ## Swap (row, col) with (i, j)
                 n.tiles[row][col], n.tiles[i][j] = n.tiles[i][j], n.tiles[row][col]
                 neighbs.append(n)
         return neighbs
-    
-    def solve(self):
-        """
-        Find a shortest path from this state to a goal state
 
-        Returns
-        -------
-        list of State
-            A path from this state to a goal state, where the first 
-            element is this state and the last element is the goal
-        """
-        finished = False
-        
+    def solve(self, goal_state=None):
         frontier = DoublyLinkedList()
         frontier.add_last(self)
-
+        visited = set()
         on_frontier = set([self])
-        visited = set([])
-
-        # Each vertex passes through the frontier exactly once
         v = None
-        while not finished and len(frontier) > 0: # O(V) iterations
-            v = frontier.remove_first() #O(1)
-            visited.add(v) # O(1)
+
+        while len(frontier) > 0:
+            v = frontier.remove_first()
+            visited.add(v)
             on_frontier.remove(v)
-            if v.is_goal():
-                finished = True
-            else:
-                # Look at each neighbor of v
-                for n in v.get_neighbs(): # 2E, or O(E) iterations over all
-                    # iterations of the outer loop
-                    # As many iterations as neighbors of v
-                    # Put a neighbor on the frontier
-                    # if it hasn't been visited yet
-                    if n not in on_frontier and n not in visited:
-                        # Switch to being on frontier, and add
-                        # to the back of the frontier
-                        on_frontier.add(n) # O(1)
-                        n.prev = v
-                        frontier.add_last(n) # O(1)
-        # TODO: Fill this in
+            if goal_state is not None and v.tiles == goal_state.tiles:
+                break
+            elif goal_state is None and v.is_goal():
+                break
+            for n in v.get_neighbs():
+                if n not in visited and n not in on_frontier:
+                    on_frontier.add(n)
+                    n.prev = v
+                    frontier.add_last(n)
+
+        if v is None or (goal_state and v.tiles != goal_state.tiles):
+            return []
+
         solution = [v]
         while v.prev:
             v = v.prev
@@ -243,10 +122,56 @@ class State:
         solution.reverse()
         return solution
 
-state = State([[5, 6, 8], [" ", 4, 7], [1, 3, 2]])
-solution = state.solve()
+    def is_goal(self):
+        N = len(self.tiles)
+        counter = 1
+        for i in range(N):
+            for j in range(N):
+                if i == N-1 and j == N-1:
+                    if self.tiles[i][j] != " ":
+                        return False
+                else:
+                    if self.tiles[i][j] != counter:
+                        return False
+                    counter += 1
+        return True
 
-for x in solution:
-    print(x, end="\n\n")
+def parse_input(string):
+    chars = list(string)
+    grid = [["" for _ in range(3)] for _ in range(3)]
+    index = 0
+    for i in range(3):
+        for j in range(3):
+            grid[i][j] = " " if chars[index] == "#" else chars[index]
+            index += 1
+    return [[int(cell) if cell.isdigit() else cell for cell in row] for row in grid]
 
-print(len(solution))
+def is_solvable(tiles):
+    flat = [x for row in tiles for x in row if x != " "]
+    inv_count = 0
+    for i in range(len(flat)):
+        for j in range(i + 1, len(flat)):
+            if flat[i] > flat[j]:
+                inv_count += 1
+    return inv_count % 2 == 0
+
+# === MAIN CODE ===
+string = input().strip()
+destination = input().strip()
+
+converted_grid = parse_input(string)
+converted_grid2 = parse_input(destination)
+
+if not is_solvable(converted_grid):
+    print("Unsolvable puzzle.")
+else:
+    state1 = State(converted_grid)
+    goal_state = State(converted_grid2)
+    solution = state1.solve(goal_state)
+
+    if not solution:
+        print("No solution found.")
+    else:
+        #for step in solution:
+            #print(step)
+        print( len(solution) - 1)
